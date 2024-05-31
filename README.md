@@ -1,16 +1,16 @@
 # dpkernel
 
-This package implements the two-sample dcMMD and independence dcHSIC tests which are robust against data corruption, as proposed in our paper [Robust Kernel Hypothesis Testing under Data Corruption](https://arxiv.org/abs/2405.19912), as well as robust variants of the differentially private dpMMD and dpHSIC tests of [Differentially Private Permutation Tests: Applications to Kernel Methods](https://arxiv.org/abs/2310.19043) from the [dpkernel](https://github.com/antoninschrab/dpkernel/) repository.
+This package implements the differentially private dpMMD and dpHSIC tests for two-sample and independence testing, as proposed in our paper [Differentially Private Permutation Tests: Applications to Kernel Methods](https://arxiv.org/abs/2310.19043).
 
 The implementation is in [JAX](https://jax.readthedocs.io/) which can leverage the architecture of GPUs to provide considerable computational speedups.
 
-The experiments of the paper can be reproduced by running the [notebook](https://github.com/antoninschrab/dckernel-paper/blob/master/experiments.ipynb) from the [dckernel-paper](https://github.com/antoninschrab/dckernel-paper/) repository, which also contains demo code showing how to use the tests.
+The experiments of the paper can be reproduced using the [dpkernel-paper](https://github.com/antoninschrab/dpkernel-paper/) repository, which also contains a [demo.ipynb](https://github.com/antoninschrab/dpkernel-paper/blob/master/demo.ipynb) notebook explaining how to use dpMMD and dpHSIC.
 
 ## Installation
 
-The `dckernel` package can be installed by running:
+The `dpkernel` package can be installed by running:
 ```bash
-pip install git+https://github.com/antoninschrab/dckernel.git
+pip install git+https://github.com/antoninschrab/dpkernel.git
 ```
 which relies on the `jax` and `jaxlib` dependencies.
 
@@ -19,99 +19,106 @@ In order to run the tests on GPUs the `cuda` versions of [JAX](https://jax.readt
 pip install --upgrade pip
 pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
-This can also be run before installing `dckernel`.
+This can also be run before installing `dpkernel`.
 
 ## Examples
 
-**Jax compilation:** The first time the dcmmd or dchsic functions are evaluated, JAX compiles them. 
-After compilation, they can fastly be evaluated at any other X and Y of the same shape, and any robustness parameter. 
+**Jax compilation:** The first time the dpmmd or dphsic functions are evaluated, JAX compiles them. 
+After compilation, they can fastly be evaluated at any other X and Y of the same shape, and any epsilon. 
 If the functions are given arrays with new shapes, the functions are compiled again.
-For details, check out the demo in the [notebook](https://github.com/antoninschrab/dckernel-paper/blob/master/experiments.ipynb) from the [dckernel-paper](https://github.com/antoninschrab/dckernel-paper/) repository.
+For details, check out the [demo.ipynb](https://github.com/antoninschrab/dpkernel-paper/blob/master/demo.ipynb) notebook on the [dpkernel-paper](https://github.com/antoninschrab/dpkernel-paper/) repository.
 
-### dcMMD
+### dpMMD
 
-**Two-sample testing:** Given arrays X of shape $(m, d)$ and Y of shape $(n, d)$, our dcMMD test `dcMMD(key, X, Y, robustness)` returns 0 if the samples X and Y are believed to come from the same distribution, or 1 otherwise, and is robust up to the corruption of `robustness` number of samples.
+**Two-sample testing:** Given arrays X of shape $(m, d)$ and Y of shape $(n, d)$, our dpMMD test `dpMMD(key, X, Y, epsilon, delta)` returns 0 if the samples X and Y are believed to come from the same distribution, or 1 otherwise, and is (epsilon, delta) differential private.
 
 ```python
 # import modules
 >>> import jax.numpy as jnp
 >>> from jax import random
->>> from dckernel import dcmmd, human_readable_dict
+>>> from dpkernel import dpmmd, dphsic, human_readable_dict
 
 # generate data for two-sample test
 >>> key = random.PRNGKey(0)
->>> subkeys = random.split(key, num=2)
+>>> subkeys = random.split(subkey, num=2)
 >>> X = random.uniform(subkeys[0], shape=(500, 10))
 >>> Y = random.uniform(subkeys[1], shape=(500, 10)) + 1
 
-# run dcMMD test
+# run dpMMD test
 >>> key, subkey = random.split(key)
->>> output = dcmmd(subkey, X, Y, robustness=50)
+>>> output = dpmmd(subkey, X, Y, epsilon=0.7, delta=0.1)
 >>> output
 Array(1, dtype=int32)
 >>> output.item()
 1
->>> output, dictionary = dcmmd(subkey, X, Y, robustness=50, return_dictionary=True)
+>>> output, dictionary = dpmmd(subkey, X, Y, epsilon=0.7, delta=0.1, return_dictionary=True)
 >>> output
 Array(1, dtype=int32)
 >>> human_readable_dict(dictionary)
 >>> dictionary
-{'Bandwidth': 3.1622776985168457,
+{'Bandwidth': 3.1622776601683795,
+ 'DP delta': 0.1,
+ 'DP epsilon': 0.7,
  'Kernel gaussian': True,
- 'Level': 0.05000000074505806,
- 'MMD DC-adjusted quantile': 0.16384649276733398,
- 'MMD V-statistic': 1.0293232202529907,
- 'MMD quantile': 0.050709404051303864,
- 'Number of permutations': 500,
- 'Robustness': 40,
- 'dcMMD test reject': True}
+ 'Non-privatised MMD V-statistic': 1.0208993368311252,
+ 'Number of permutations': 2000,
+ 'Privacy Laplace noise for MMD V-statistic': 0.003230674754896666,
+ 'Privatised MMD V-statistic': 1.024130011586022,
+ 'Privatised MMD quantile': 0.07137244880436107,
+ 'Privatised p-value': 0.0004997501382604241,
+ 'Privatised p-value threshold': 0.05,
+ 'Test level': 0.05,
+ 'dpMMD test reject': True}
 ```
 
-### dcHSIC
+### dpHSIC
 
-**Independence testing:** Given paired arrays X of shape $(n, d_X)$ and Y of shape $(n, d_Y)$, our dcHSIC test `dcHSIC(key, X, Y, robustness)` returns 0 if the paired samples X and Y are believed to be independent, or 1 otherwise, and is robust up to the corruption of `robustness` number of samples.
+**Independence testing:** Given paired arrays X of shape $(n, d_X)$ and Y of shape $(n, d_Y)$, our dpHSIC test `dpHSIC(key, X, Y, epsilon, delta)` returns 0 if the paired samples X and Y are believed to be independent, or 1 otherwise, and is (epsilon, delta) differential private.
 
 ```python
 # import modules
 >>> import jax.numpy as jnp
 >>> from jax import random
->>> from dckernel import dchsic, human_readable_dict
+>>> from dpkernel import dpmmd, dphsic, human_readable_dict
 
 # generate data for independence test 
 >>> key = random.PRNGKey(0)
 >>> subkeys = random.split(subkey, num=2)
->>> X = random.uniform(subkeys[0], shape=(1000, 10))
->>> X = X.at[:500].set(X[:500] + 10)
->>> Y = X + 0.01 * random.uniform(subkeys[1], shape=(1000, 10))
+>>> X = random.uniform(subkeys[0], shape=(500, 10))
+>>> Y = X + 0.01 * random.uniform(subkeys[1], shape=(500, 10))
 
-# run dcHSIC test
+# run dpHSIC test
 >>> key, subkey = random.split(key)
->>> output = dchsic(subkey, X, Y, robustness=40)
+>>> output = dphsic(subkey, X, Y, epsilon=0.7, delta=0.1)
 >>> output
 Array(1, dtype=int32)
 >>> output.item()
 1
->>> output, dictionary = dchsic(subkey, X, Y, robustness=50, return_dictionary=True)
+>>> output, dictionary = dphsic(subkey, X, Y, epsilon=0.7, delta=0.1, return_dictionary=True)
 >>> output
 Array(1, dtype=int32)
 >>> human_readable_dict(dictionary)
 >>> dictionary
-{'Bandwidth X': 3.1622776985168457,
- 'Bandwidth Y': 3.1622776985168457,
- 'HSIC DC-adjusted quantile': 0.34696316719055176,
- 'HSIC V-statistic': 0.4259658455848694,
- 'HSIC quantile': 0.027283163741230965,
+{'Bandwidth X': 3.1622776601683795,
+ 'Bandwidth Y': 3.1622776601683795,
+ 'DP delta': 0.1,
+ 'DP epsilon': 0.7,
  'Kernel X gaussian': True,
  'Kernel Y gaussian': True,
- 'Level': 0.05000000074505806,
- 'Number of permutations': 500,
- 'Robustness': 40,
- 'dcHSIC test reject': True}
+ 'Non-privatised HSIC V-statistic': 0.04508960829602034,
+ 'Number of permutations': 2000,
+ 'Privacy Laplace noise for HSIC V-statistic': 0.009119452651766512,
+ 'Privatised HSIC V-statistic': 0.05420906094778685,
+ 'Privatised HSIC quantile': 0.05035574742299952,
+ 'Privatised p-value': 0.04097951203584671,
+ 'Privatised p-value threshold': 0.05,
+ 'Test level': 0.05,
+ 'dpHSIC test reject': True}
 ```
 
 ## Contact
 
-If you have any issues running our dcMMD and dcHSIC tests, please do not hesitate to contact [Antonin Schrab](https://antoninschrab.github.io).
+If you have any issues running our dpMMD and dpHSIC tests, please do not hesitate to contact [Antonin Schrab](https://antoninschrab.github.io).
 
 ## Affiliations
 
@@ -124,14 +131,14 @@ Inria London
 ## Bibtex
 
 ```
-@unpublished{schrab2024robust,
-title={Robust Kernel Hypothesis Testing under Data Corruption}, 
-author={Antonin Schrab and Ilmun Kim},
-year={2024},
-url = {https://arxiv.org/abs/2405.19912},
-eprint={2405.19912},
+@unpublished{kim2023differentially,
+title={Differentially Private Permutation Tests: {A}pplications to Kernel Methods}, 
+author={Ilmun Kim and Antonin Schrab},
+year={2023},
+url = {https://arxiv.org/abs/2310.19043},
+eprint={2310.19043},
 archivePrefix={arXiv},
-primaryClass={stat.ML}
+primaryClass={math.ST}
 }
 ```
 
@@ -145,7 +152,4 @@ MIT License (see [LICENSE.md](LICENSE.md)).
 - [ksdagg](https://github.com/antoninschrab/ksdagg/): KSD Aggregated KSDAgg test
 - [agginc](https://github.com/antoninschrab/agginc/): Efficient MMDAggInc HSICAggInc KSDAggInc tests
 - [mmdfuse](https://github.com/antoninschrab/mmdfuse/): MMD-Fuse test
-- [dpkernel](https://github.com/antoninschrab/dpkernel/): Differentially private dpMMD dpHSIC tests
-<!-- 
-- [dckernel](https://github.com/antoninschrab/dpkernel/): Differentially private dpMMD dpHSIC tests
--->
+- [dckernel](https://github.com/antoninschrab/dckernel/): Robust to Data Corruption dcMMD dcHSIC tests
